@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>To-Do App</title>
+  <style>
+    * { box-sizing: border-box; font-family: system-ui, sans-serif; }
+    body { background: #f3f4f8; display: flex; justify-content: center; padding: 40px 16px; margin: 0; }
+    .card { background: #fff; width: 100%; max-width: 440px; padding: 28px; border-radius: 14px; box-shadow: 0 6px 24px #0001; }
+    h1 { margin-top: 0; color: #4b2aad; }
+    input { width: 100%; padding: 10px; margin: 6px 0; border: 1px solid #ccc; border-radius: 8px; }
+    button { padding: 10px 14px; border: 0; border-radius: 8px; background: #6c3bd1; color: #fff; cursor: pointer; }
+    button.link { background: none; color: #6c3bd1; padding: 0; }
+    .row { display: flex; gap: 8px; }
+    ul { list-style: none; padding: 0; }
+    li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #eee; }
+    li span { flex: 1; cursor: pointer; }
+    li.done span { text-decoration: line-through; color: #999; }
+    .del { background: #e53935; padding: 4px 10px; }
+    .msg { color: #c62828; min-height: 1.2em; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <h1>✅ Minhas Tarefas</h1>
+
+  <section id="auth">
+    <input id="username" placeholder="Usuário" />
+    <input id="password" type="password" placeholder="Senha" />
+    <div class="row">
+      <button onclick="auth('login')">Entrar</button>
+      <button onclick="auth('register')" style="background:#999">Cadastrar</button>
+    </div>
+  </section>
+
+  <section id="app" class="hidden">
+    <p>Olá, <b id="who"></b>! <button class="link" onclick="logout()">sair</button></p>
+    <form class="row" onsubmit="addTask(event)">
+      <input id="title" placeholder="Nova tarefa..." />
+      <button>Adicionar</button>
+    </form>
+    <ul id="list"></ul>
+  </section>
+
+  <p class="msg" id="msg"></p>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const api = async (url, method = "GET", body) => {
+    const res = await fetch(url, { method, headers: { "Content-Type": "application/json" },
+                                   body: body ? JSON.stringify(body) : undefined });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "erro");
+    return data;
+  };
+
+  async function auth(kind) {
+    $("msg").textContent = "";
+    const body = { username: $("username").value, password: $("password").value };
+    try {
+      if (kind === "register") await api("/api/register", "POST", body);
+      const { username } = await api("/api/login", "POST", body);
+      showApp(username);
+    } catch (e) { $("msg").textContent = e.message; }
+  }
+
+  async function logout() { await api("/api/logout", "POST"); location.reload(); }
+
+  function showApp(username) {
+    $("who").textContent = username;
+    $("auth").classList.add("hidden");
+    $("app").classList.remove("hidden");
+    load();
+  }
+
+  async function load() {
+    const tasks = await api("/api/tasks");
+    $("list").innerHTML = "";
+    tasks.forEach((t) => {
+      const li = document.createElement("li");
+      li.className = t.done ? "done" : "";
+      const span = document.createElement("span");
+      span.textContent = t.title;
+      span.onclick = async () => { await api(`/api/tasks/${t.id}`, "PATCH"); load(); };
+      const del = document.createElement("button");
+      del.className = "del"; del.textContent = "✕";
+      del.onclick = async () => { await api(`/api/tasks/${t.id}`, "DELETE"); load(); };
+      li.append(span, del);
+      $("list").append(li);
+    });
+  }
+
+  async function addTask(e) {
+    e.preventDefault();
+    if (!$("title").value.trim()) return;
+    await api("/api/tasks", "POST", { title: $("title").value });
+    $("title").value = "";
+    load();
+  }
+
+  api("/api/me").then(({ username }) => username && showApp(username));
+</script>
+</body>
+</html>
